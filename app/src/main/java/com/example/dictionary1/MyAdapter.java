@@ -10,22 +10,37 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.DiffUtil;
+import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
+public class MyAdapter extends ListAdapter<Word,MyAdapter.MyViewHolder> {
     // 創一個空間給arraylist
-    List<Word> allWords = new ArrayList<>();
-    public void setAllWords(List<Word> allWords) {
-        this.allWords = allWords;
-    }
+    //List<Word> allWords = new ArrayList<>();  //~ 因為ListAdapter的副類就有，無需再創一個空間
+//    public void setAllWords(List<Word> allWords) {
+//        this.allWords = allWords;
+//    }
 
     // 做一個給switch切換的T/F
     private boolean useCardView;
     private WordViewModel wordViewModel;
     public MyAdapter(boolean useCardView, WordViewModel wordViewModel) {
+        super(new DiffUtil.ItemCallback<Word>() {
+            @Override
+            public boolean areItemsTheSame(@NonNull Word oldItem, @NonNull Word newItem) {
+                return oldItem.getId() == newItem.getId();
+            }
+
+            @Override
+            public boolean areContentsTheSame(@NonNull Word oldItem, @NonNull Word newItem) {
+                return (oldItem.getEn().equals(newItem.getEn())
+                &&oldItem.getCh().equals(newItem.getCh())
+                &&oldItem.isChInvisible() == newItem.isChInvisible());
+            }
+        });
         this.useCardView = useCardView;
         this.wordViewModel = wordViewModel;//將數據庫的資料傳進來
     }
@@ -61,7 +76,8 @@ public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
 
     @Override
     public void onBindViewHolder(@NonNull MyViewHolder holder, int position) {
-        Word word = allWords.get(position);//取得資料
+        //Word word = allWords.get(position);//取得資料
+        Word word = getItem(position); //取得資料
         holder.itemView.setTag(R.id.word_for_View_holder,word); // setTag(KEY,資料)
         holder.tvNum.setText(String.valueOf(position+1)); // 當前列表中的位置
         holder.tvCh.setText(word.getCh());
@@ -75,10 +91,10 @@ public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
         }
     }
 
-    @Override
-    public int getItemCount() {
-        return allWords.size();
-    }
+//    @Override
+//    public int getItemCount() {
+//        return allWords.size();
+//    }
     // 內部類前面加static可以防止內存外洩
     static class MyViewHolder extends RecyclerView.ViewHolder{
         TextView tvNum, tvCh, tvEn;

@@ -20,6 +20,10 @@ public class WordRepository {
     public LiveData<List<Word>> getAllWordsLive() {
         return allWordsLive;
     }
+    public  LiveData<List<Word>> findWordsWithPattern(String pattern){
+        return wordDao.findWordsWithPattern("%"+pattern+"%");
+    }
+
 
     // 寫接口
     void insertWords(Word... words){
@@ -28,7 +32,6 @@ public class WordRepository {
     void updateWords(Word... words){
         new UpdateAsyncTask(wordDao).execute(words);
     }
-
     void deleteAllWords(Word... words){
         new DeleteAllAsyncTask(wordDao).execute();
     }

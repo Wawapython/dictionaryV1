@@ -1,21 +1,33 @@
 package com.example.dictionary1;
 
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.LiveData;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
+import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.LinearLayout;
+import android.widget.SearchView;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
@@ -30,6 +42,9 @@ public class WordFragment extends Fragment {
     private WordViewModel wordViewModel;
     private RecyclerView recyclerView;
     private MyAdapter myAdapter1,myAdapter2;
+    private LiveData<List<Word>> filteredWord;
+    private static final String VIEW_TYPE_SHP = "view_type_shp";
+    private static  final String IS_CARD_SHP = "is_card_shp";
     // TODO: Rename parameter arguments, choose names that match
     // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
     private static final String ARG_PARAM1 = "param1";
@@ -41,6 +56,89 @@ public class WordFragment extends Fragment {
 
     public WordFragment() {
         // Required empty public constructor
+        setHasOptionsMenu(true); // 顯示menu
+    }
+
+    //清空數據
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        switch (item.getItemId()){
+            case R.id.clearData:
+                AlertDialog.Builder builder = new AlertDialog.Builder(requireActivity());
+                builder.setTitle("Clear all data?");
+                builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        wordViewModel.deleteAllWords();
+                    }
+                });
+                builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+
+                    }
+                });
+                builder.create();
+                builder.show();
+                break;
+                // 換場景
+            case R.id.switchView:
+                SharedPreferences shp = requireActivity().getSharedPreferences(VIEW_TYPE_SHP, Context.MODE_PRIVATE);
+                boolean viewTpye = shp.getBoolean(IS_CARD_SHP, false);
+                SharedPreferences.Editor editor = shp.edit();
+                if(viewTpye){
+                    recyclerView.setAdapter(myAdapter1);
+                    editor.putBoolean(IS_CARD_SHP, false);
+                }else{
+                    recyclerView.setAdapter(myAdapter2);
+                    editor.putBoolean(IS_CARD_SHP, true);
+                }
+                editor.apply();
+//                if (recyclerView.getAdapter()==myAdapter1){
+//                    recyclerView.setAdapter(myAdapter2);
+//                }else{
+//                    recyclerView.setAdapter(myAdapter1);
+//                }
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    //
+
+    @Override
+    public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
+        super.onCreateOptionsMenu(menu, inflater);
+        inflater.inflate(R.menu.mymenu, menu);
+        SearchView searchView = (SearchView) menu.findItem(R.id.app_bar_search).getActionView();
+        searchView.setMaxWidth(700);
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String query) {
+                return false;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String newText) {
+                String pattern = newText.trim();
+                filteredWord.removeObservers(requireActivity()); // 先移除本身的監聽器，以免發生碰撞
+                filteredWord = wordViewModel.findWordsWithPattern(pattern);
+                filteredWord.observe(requireActivity(), new Observer<List<Word>>() {
+                    @Override
+                    public void onChanged(List<Word> words) {
+                        int temp = myAdapter1.getItemCount(); // 資料的長度
+//                        myAdapter1.setAllWords(words);
+//                        myAdapter2.setAllWords(words);
+                        if(temp!=words.size()) { // 若資料的長度有變化(有添增)，才會刷新
+                            myAdapter1.submitList(words);
+                            myAdapter2.submitList(words);
+                        }
+                    }
+                });
+                //Log.d("mylog", "search"+ newText);
+                return true;
+            }
+        });
     }
 
     /**
@@ -86,17 +184,41 @@ public class WordFragment extends Fragment {
         recyclerView.setLayoutManager(new LinearLayoutManager(requireActivity()));
         myAdapter1 = new MyAdapter(false, wordViewModel);
         myAdapter2 = new MyAdapter(true, wordViewModel);
-        recyclerView.setAdapter(myAdapter1);
-        wordViewModel.getAllWordsLive().observe(requireActivity(), new Observer<List<Word>>() {
+        recyclerView.setItemAnimator(new DefaultItemAnimator(){
             @Override
-            public void onChanged(List<Word> words) {
-                int temp = myAdapter1.getItemCount(); // 資料的長度
-                myAdapter1.setAllWords(words);
-                myAdapter2.setAllWords(words);
-                if(temp!=words.size()){ // 若資料的長度有變化(有添增)，才會刷新
-                    myAdapter1.notifyDataSetChanged(); // 刷新通知
-                    myAdapter2.notifyDataSetChanged();
+            public void onAnimationFinished(@NonNull RecyclerView.ViewHolder viewHolder) {
+                super.onAnimationFinished(viewHolder);
+                LinearLayoutManager linearLayoutManager = (LinearLayoutManager) recyclerView.getLayoutManager();
+                if (linearLayoutManager != null){
+                    int firstPosition = linearLayoutManager.findFirstVisibleItemPosition();
+                    int lastPosition = linearLayoutManager.findLastVisibleItemPosition();
+                    for (int i = firstPosition; i <= lastPosition;i++){
+                        MyAdapter.MyViewHolder holder = (MyAdapter.MyViewHolder) recyclerView.findViewHolderForAdapterPosition(i);
+                        if (holder != null){
+                            holder.tvNum.setText(String.valueOf(i+1));
+                        }
+                    }
                 }
+            }
+        });
+
+        //recyclerView.setAdapter(myAdapter1);
+        SharedPreferences shp = requireActivity().getSharedPreferences(VIEW_TYPE_SHP, Context.MODE_PRIVATE);
+        boolean viewTpye = shp.getBoolean(IS_CARD_SHP, false);
+        if(viewTpye){
+            recyclerView.setAdapter(myAdapter1);
+        }else{
+            recyclerView.setAdapter(myAdapter2);
+        }
+        //
+        filteredWord = wordViewModel.getAllWordsLive(); // 數據初始化~ 不過濾，資料全拿
+        filteredWord.observe(requireActivity(), words -> {
+            int temp = myAdapter1.getItemCount(); // 資料的長度
+//            myAdapter1.setAllWords(words);
+//            myAdapter2.setAllWords(words);
+            if(temp!=words.size()){ // 若資料的長度有變化(有添增)，才會刷新
+                myAdapter1.submitList(words);
+                myAdapter2.submitList(words);
             }
         });
         FloatingActionButton floatingActionButton;
